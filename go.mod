@@ -26,9 +26,9 @@ require (
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/juju/testing v0.0.0-20220203020004-a0ff61f03494 // indirect
 	github.com/lib/pq v1.10.5
-	github.com/libp2p/go-libp2p v0.13.0
-	github.com/libp2p/go-libp2p-circuit v0.4.0
-	github.com/libp2p/go-libp2p-core v0.8.3
+	github.com/libp2p/go-libp2p v0.18.0
+	github.com/libp2p/go-libp2p-circuit v0.6.0
+	github.com/libp2p/go-libp2p-core v0.14.0
 	github.com/libp2p/go-libp2p-gostream v0.3.1
 	github.com/libp2p/go-libp2p-http v0.2.0
 	github.com/libp2p/go-libp2p-kad-dht v0.11.1
