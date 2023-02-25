@@ -64,7 +64,7 @@ require (
 	golang.org/x/image v0.0.0-20220321031419-a8550c1d254a
 	golang.org/x/mobile v0.0.0-20220407111146-e579adbbc4a2
 	golang.org/x/net v0.0.0-20220407224826-aac1ed45d8e3
-	golang.org/x/sys v0.0.0-20220406163625-3f8b81556e12 // indirect
+	golang.org/x/sys v0.1.0 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	gopkg.in/h2non/bimg.v1 v1.1.9
 	gopkg.in/yaml.v2 v2.4.0
