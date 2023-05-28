@@ -22,22 +22,22 @@ import (
 	"time"
 
 	"github.com/matrix-org/gomatrix"
-	"github.com/matrix-org/gomatrixserverlib"
 	"github.com/matrix-org/gomatrixserverlib/tokens"
 	"github.com/matrix-org/util"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
+	"github.com/matrix-org/dendrite/roomserver/types"
 	"github.com/matrix-org/dendrite/roomserver/version"
 
 	appserviceAPI "github.com/matrix-org/dendrite/appservice/api"
 	"github.com/matrix-org/dendrite/clientapi/httputil"
-	"github.com/matrix-org/dendrite/clientapi/jsonerror"
 	"github.com/matrix-org/dendrite/internal/eventutil"
 	"github.com/matrix-org/dendrite/internal/transactions"
 	"github.com/matrix-org/dendrite/roomserver/api"
 	"github.com/matrix-org/dendrite/setup/config"
 	userapi "github.com/matrix-org/dendrite/userapi/api"
+	"github.com/matrix-org/gomatrixserverlib/spec"
 )
 
 // Unspecced server notice request
@@ -68,7 +68,7 @@ func SendServerNotice(
 	if device.AccountType != userapi.AccountTypeAdmin {
 		return util.JSONResponse{
 			Code: http.StatusForbidden,
-			JSON: jsonerror.Forbidden("This API can only be used by admin users."),
+			JSON: spec.Forbidden("This API can only be used by admin users."),
 		}
 	}
 
@@ -90,7 +90,7 @@ func SendServerNotice(
 	if !r.valid() {
 		return util.JSONResponse{
 			Code: http.StatusBadRequest,
-			JSON: jsonerror.BadJSON("Invalid request"),
+			JSON: spec.BadJSON("Invalid request"),
 		}
 	}
 
@@ -157,7 +157,6 @@ func SendServerNotice(
 			Visibility:                "private",
 			Preset:                    presetPrivateChat,
 			CreationContent:           cc,
-			GuestCanJoin:              false,
 			RoomVersion:               roomVersion,
 			PowerLevelContentOverride: pl,
 		}
@@ -176,7 +175,10 @@ func SendServerNotice(
 			}}
 			if err = saveTagData(req, r.UserID, roomID, userAPI, serverAlertTag); err != nil {
 				util.GetLogger(ctx).WithError(err).Error("saveTagData failed")
-				return jsonerror.InternalServerError()
+				return util.JSONResponse{
+					Code: http.StatusInternalServerError,
+					JSON: spec.InternalServerError{},
+				}
 			}
 
 		default:
@@ -190,7 +192,10 @@ func SendServerNotice(
 		err := rsAPI.QueryMembershipForUser(ctx, &api.QueryMembershipForUserRequest{UserID: r.UserID, RoomID: roomID}, &membershipRes)
 		if err != nil {
 			util.GetLogger(ctx).WithError(err).Error("unable to query membership for user")
-			return jsonerror.InternalServerError()
+			return util.JSONResponse{
+				Code: http.StatusInternalServerError,
+				JSON: spec.InternalServerError{},
+			}
 		}
 		if !membershipRes.IsInRoom {
 			// re-invite the user
@@ -228,8 +233,8 @@ func SendServerNotice(
 	if err := api.SendEvents(
 		ctx, rsAPI,
 		api.KindNew,
-		[]*gomatrixserverlib.HeaderedEvent{
-			e.Headered(roomVersion),
+		[]*types.HeaderedEvent{
+			&types.HeaderedEvent{PDU: e},
 		},
 		device.UserDomain(),
 		cfgClient.Matrix.ServerName,
@@ -238,7 +243,10 @@ func SendServerNotice(
 		false,
 	); err != nil {
 		util.GetLogger(ctx).WithError(err).Error("SendEvents failed")
-		return jsonerror.InternalServerError()
+		return util.JSONResponse{
+			Code: http.StatusInternalServerError,
+			JSON: spec.InternalServerError{},
+		}
 	}
 	util.GetLogger(ctx).WithFields(logrus.Fields{
 		"event_id":     e.EventID(),

@@ -21,16 +21,16 @@ import (
 
 	"github.com/matrix-org/gomatrixserverlib"
 	"github.com/matrix-org/gomatrixserverlib/fclient"
+	"github.com/matrix-org/gomatrixserverlib/spec"
 
 	appserviceAPI "github.com/matrix-org/dendrite/appservice/api"
 	"github.com/matrix-org/dendrite/clientapi/auth/authtypes"
 	"github.com/matrix-org/dendrite/clientapi/httputil"
-	"github.com/matrix-org/dendrite/clientapi/jsonerror"
 	"github.com/matrix-org/dendrite/internal/eventutil"
 	"github.com/matrix-org/dendrite/roomserver/api"
+	"github.com/matrix-org/dendrite/roomserver/types"
 	"github.com/matrix-org/dendrite/setup/config"
 	userapi "github.com/matrix-org/dendrite/userapi/api"
-
 	"github.com/matrix-org/gomatrix"
 	"github.com/matrix-org/util"
 )
@@ -40,19 +40,22 @@ func GetProfile(
 	req *http.Request, profileAPI userapi.ProfileAPI, cfg *config.ClientAPI,
 	userID string,
 	asAPI appserviceAPI.AppServiceInternalAPI,
-	federation *fclient.FederationClient,
+	federation fclient.FederationClient,
 ) util.JSONResponse {
 	profile, err := getProfile(req.Context(), profileAPI, cfg, userID, asAPI, federation)
 	if err != nil {
 		if err == appserviceAPI.ErrProfileNotExists {
 			return util.JSONResponse{
 				Code: http.StatusNotFound,
-				JSON: jsonerror.NotFound("The user does not exist or does not have a profile"),
+				JSON: spec.NotFound("The user does not exist or does not have a profile"),
 			}
 		}
 
 		util.GetLogger(req.Context()).WithError(err).Error("getProfile failed")
-		return jsonerror.InternalServerError()
+		return util.JSONResponse{
+			Code: http.StatusInternalServerError,
+			JSON: spec.InternalServerError{},
+		}
 	}
 
 	return util.JSONResponse{
@@ -68,7 +71,7 @@ func GetProfile(
 func GetAvatarURL(
 	req *http.Request, profileAPI userapi.ProfileAPI, cfg *config.ClientAPI,
 	userID string, asAPI appserviceAPI.AppServiceInternalAPI,
-	federation *fclient.FederationClient,
+	federation fclient.FederationClient,
 ) util.JSONResponse {
 	profile := GetProfile(req, profileAPI, cfg, userID, asAPI, federation)
 	p, ok := profile.JSON.(eventutil.UserProfile)
@@ -93,7 +96,7 @@ func SetAvatarURL(
 	if userID != device.UserID {
 		return util.JSONResponse{
 			Code: http.StatusForbidden,
-			JSON: jsonerror.Forbidden("userID does not match the current user"),
+			JSON: spec.Forbidden("userID does not match the current user"),
 		}
 	}
 
@@ -104,20 +107,23 @@ func SetAvatarURL(
 	if r.AvatarURL == "" {
 		return util.JSONResponse{
 			Code: http.StatusBadRequest,
-			JSON: jsonerror.BadJSON("'avatar_url' must be supplied."),
+			JSON: spec.BadJSON("'avatar_url' must be supplied."),
 		}
 	}
 
 	localpart, domain, err := gomatrixserverlib.SplitID('@', userID)
 	if err != nil {
 		util.GetLogger(req.Context()).WithError(err).Error("gomatrixserverlib.SplitID failed")
-		return jsonerror.InternalServerError()
+		return util.JSONResponse{
+			Code: http.StatusInternalServerError,
+			JSON: spec.InternalServerError{},
+		}
 	}
 
 	if !cfg.Matrix.IsLocalServerName(domain) {
 		return util.JSONResponse{
 			Code: http.StatusForbidden,
-			JSON: jsonerror.Forbidden("userID does not belong to a locally configured domain"),
+			JSON: spec.Forbidden("userID does not belong to a locally configured domain"),
 		}
 	}
 
@@ -125,14 +131,17 @@ func SetAvatarURL(
 	if err != nil {
 		return util.JSONResponse{
 			Code: http.StatusBadRequest,
-			JSON: jsonerror.InvalidArgumentValue(err.Error()),
+			JSON: spec.InvalidParam(err.Error()),
 		}
 	}
 
 	profile, changed, err := profileAPI.SetAvatarURL(req.Context(), localpart, domain, r.AvatarURL)
 	if err != nil {
 		util.GetLogger(req.Context()).WithError(err).Error("profileAPI.SetAvatarURL failed")
-		return jsonerror.InternalServerError()
+		return util.JSONResponse{
+			Code: http.StatusInternalServerError,
+			JSON: spec.InternalServerError{},
+		}
 	}
 	// No need to build new membership events, since nothing changed
 	if !changed {
@@ -157,7 +166,7 @@ func SetAvatarURL(
 func GetDisplayName(
 	req *http.Request, profileAPI userapi.ProfileAPI, cfg *config.ClientAPI,
 	userID string, asAPI appserviceAPI.AppServiceInternalAPI,
-	federation *fclient.FederationClient,
+	federation fclient.FederationClient,
 ) util.JSONResponse {
 	profile := GetProfile(req, profileAPI, cfg, userID, asAPI, federation)
 	p, ok := profile.JSON.(eventutil.UserProfile)
@@ -182,7 +191,7 @@ func SetDisplayName(
 	if userID != device.UserID {
 		return util.JSONResponse{
 			Code: http.StatusForbidden,
-			JSON: jsonerror.Forbidden("userID does not match the current user"),
+			JSON: spec.Forbidden("userID does not match the current user"),
 		}
 	}
 
@@ -193,20 +202,23 @@ func SetDisplayName(
 	if r.DisplayName == "" {
 		return util.JSONResponse{
 			Code: http.StatusBadRequest,
-			JSON: jsonerror.BadJSON("'displayname' must be supplied."),
+			JSON: spec.BadJSON("'displayname' must be supplied."),
 		}
 	}
 
 	localpart, domain, err := gomatrixserverlib.SplitID('@', userID)
 	if err != nil {
 		util.GetLogger(req.Context()).WithError(err).Error("gomatrixserverlib.SplitID failed")
-		return jsonerror.InternalServerError()
+		return util.JSONResponse{
+			Code: http.StatusInternalServerError,
+			JSON: spec.InternalServerError{},
+		}
 	}
 
 	if !cfg.Matrix.IsLocalServerName(domain) {
 		return util.JSONResponse{
 			Code: http.StatusForbidden,
-			JSON: jsonerror.Forbidden("userID does not belong to a locally configured domain"),
+			JSON: spec.Forbidden("userID does not belong to a locally configured domain"),
 		}
 	}
 
@@ -214,14 +226,17 @@ func SetDisplayName(
 	if err != nil {
 		return util.JSONResponse{
 			Code: http.StatusBadRequest,
-			JSON: jsonerror.InvalidArgumentValue(err.Error()),
+			JSON: spec.InvalidParam(err.Error()),
 		}
 	}
 
 	profile, changed, err := profileAPI.SetDisplayName(req.Context(), localpart, domain, r.DisplayName)
 	if err != nil {
 		util.GetLogger(req.Context()).WithError(err).Error("profileAPI.SetDisplayName failed")
-		return jsonerror.InternalServerError()
+		return util.JSONResponse{
+			Code: http.StatusInternalServerError,
+			JSON: spec.InternalServerError{},
+		}
 	}
 	// No need to build new membership events, since nothing changed
 	if !changed {
@@ -254,13 +269,19 @@ func updateProfile(
 	}, &res)
 	if err != nil {
 		util.GetLogger(ctx).WithError(err).Error("QueryRoomsForUser failed")
-		return jsonerror.InternalServerError(), err
+		return util.JSONResponse{
+			Code: http.StatusInternalServerError,
+			JSON: spec.InternalServerError{},
+		}, err
 	}
 
 	_, domain, err := gomatrixserverlib.SplitID('@', userID)
 	if err != nil {
 		util.GetLogger(ctx).WithError(err).Error("gomatrixserverlib.SplitID failed")
-		return jsonerror.InternalServerError(), err
+		return util.JSONResponse{
+			Code: http.StatusInternalServerError,
+			JSON: spec.InternalServerError{},
+		}, err
 	}
 
 	events, err := buildMembershipEvents(
@@ -271,16 +292,22 @@ func updateProfile(
 	case gomatrixserverlib.BadJSONError:
 		return util.JSONResponse{
 			Code: http.StatusBadRequest,
-			JSON: jsonerror.BadJSON(e.Error()),
+			JSON: spec.BadJSON(e.Error()),
 		}, e
 	default:
 		util.GetLogger(ctx).WithError(err).Error("buildMembershipEvents failed")
-		return jsonerror.InternalServerError(), e
+		return util.JSONResponse{
+			Code: http.StatusInternalServerError,
+			JSON: spec.InternalServerError{},
+		}, e
 	}
 
 	if err := api.SendEvents(ctx, rsAPI, api.KindNew, events, device.UserDomain(), domain, domain, nil, true); err != nil {
 		util.GetLogger(ctx).WithError(err).Error("SendEvents failed")
-		return jsonerror.InternalServerError(), err
+		return util.JSONResponse{
+			Code: http.StatusInternalServerError,
+			JSON: spec.InternalServerError{},
+		}, err
 	}
 	return util.JSONResponse{}, nil
 }
@@ -293,7 +320,7 @@ func getProfile(
 	ctx context.Context, profileAPI userapi.ProfileAPI, cfg *config.ClientAPI,
 	userID string,
 	asAPI appserviceAPI.AppServiceInternalAPI,
-	federation *fclient.FederationClient,
+	federation fclient.FederationClient,
 ) (*authtypes.Profile, error) {
 	localpart, domain, err := gomatrixserverlib.SplitID('@', userID)
 	if err != nil {
@@ -333,17 +360,11 @@ func buildMembershipEvents(
 	roomIDs []string,
 	newProfile authtypes.Profile, userID string, cfg *config.ClientAPI,
 	evTime time.Time, rsAPI api.ClientRoomserverAPI,
-) ([]*gomatrixserverlib.HeaderedEvent, error) {
-	evs := []*gomatrixserverlib.HeaderedEvent{}
+) ([]*types.HeaderedEvent, error) {
+	evs := []*types.HeaderedEvent{}
 
 	for _, roomID := range roomIDs {
-		verReq := api.QueryRoomVersionForRoomRequest{RoomID: roomID}
-		verRes := api.QueryRoomVersionForRoomResponse{}
-		if err := rsAPI.QueryRoomVersionForRoom(ctx, &verReq, &verRes); err != nil {
-			return nil, err
-		}
-
-		builder := gomatrixserverlib.EventBuilder{
+		proto := gomatrixserverlib.ProtoEvent{
 			Sender:   userID,
 			RoomID:   roomID,
 			Type:     "m.room.member",
@@ -351,13 +372,13 @@ func buildMembershipEvents(
 		}
 
 		content := gomatrixserverlib.MemberContent{
-			Membership: gomatrixserverlib.Join,
+			Membership: spec.Join,
 		}
 
 		content.DisplayName = newProfile.DisplayName
 		content.AvatarURL = newProfile.AvatarURL
 
-		if err := builder.SetContent(content); err != nil {
+		if err := proto.SetContent(content); err != nil {
 			return nil, err
 		}
 
@@ -366,12 +387,12 @@ func buildMembershipEvents(
 			return nil, err
 		}
 
-		event, err := eventutil.QueryAndBuildEvent(ctx, &builder, cfg.Matrix, identity, evTime, rsAPI, nil)
+		event, err := eventutil.QueryAndBuildEvent(ctx, &proto, cfg.Matrix, identity, evTime, rsAPI, nil)
 		if err != nil {
 			return nil, err
 		}
 
-		evs = append(evs, event.Headered(verRes.RoomVersion))
+		evs = append(evs, event)
 	}
 
 	return evs, nil

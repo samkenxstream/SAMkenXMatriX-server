@@ -22,8 +22,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/matrix-org/dendrite/setup/base"
 	userapi "github.com/matrix-org/dendrite/userapi/api"
-	"github.com/matrix-org/gomatrixserverlib"
 	"github.com/matrix-org/gomatrixserverlib/fclient"
+	"github.com/matrix-org/gomatrixserverlib/spec"
 	"github.com/matrix-org/util"
 	"github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -33,7 +33,6 @@ import (
 	"github.com/matrix-org/dendrite/clientapi/api"
 	"github.com/matrix-org/dendrite/clientapi/auth"
 	clientutil "github.com/matrix-org/dendrite/clientapi/httputil"
-	"github.com/matrix-org/dendrite/clientapi/jsonerror"
 	"github.com/matrix-org/dendrite/clientapi/producers"
 	federationAPI "github.com/matrix-org/dendrite/federationapi/api"
 	"github.com/matrix-org/dendrite/internal/httputil"
@@ -56,7 +55,7 @@ func Setup(
 	asAPI appserviceAPI.AppServiceInternalAPI,
 	userAPI userapi.ClientUserAPI,
 	userDirectoryProvider userapi.QuerySearchProfilesAPI,
-	federation *fclient.FederationClient,
+	federation fclient.FederationClient,
 	syncProducer *producers.SyncAPIProducer,
 	transactionsCache *transactions.Cache,
 	federationSender federationAPI.ClientFederationAPI,
@@ -148,7 +147,7 @@ func Setup(
 				}
 				return util.JSONResponse{
 					Code: http.StatusMethodNotAllowed,
-					JSON: jsonerror.NotFound("unknown method"),
+					JSON: spec.NotFound("unknown method"),
 				}
 			}),
 		).Methods(http.MethodGet, http.MethodPost, http.MethodOptions)
@@ -162,13 +161,13 @@ func Setup(
 
 	dendriteAdminRouter.Handle("/admin/evacuateUser/{userID}",
 		httputil.MakeAdminAPI("admin_evacuate_user", userAPI, func(req *http.Request, device *userapi.Device) util.JSONResponse {
-			return AdminEvacuateUser(req, cfg, rsAPI)
+			return AdminEvacuateUser(req, rsAPI)
 		}),
 	).Methods(http.MethodPost, http.MethodOptions)
 
 	dendriteAdminRouter.Handle("/admin/purgeRoom/{roomID}",
 		httputil.MakeAdminAPI("admin_purge_room", userAPI, func(req *http.Request, device *userapi.Device) util.JSONResponse {
-			return AdminPurgeRoom(req, cfg, device, rsAPI)
+			return AdminPurgeRoom(req, rsAPI)
 		}),
 	).Methods(http.MethodPost, http.MethodOptions)
 
@@ -180,7 +179,7 @@ func Setup(
 
 	dendriteAdminRouter.Handle("/admin/downloadState/{serverName}/{roomID}",
 		httputil.MakeAdminAPI("admin_download_state", userAPI, func(req *http.Request, device *userapi.Device) util.JSONResponse {
-			return AdminDownloadState(req, cfg, device, rsAPI)
+			return AdminDownloadState(req, device, rsAPI)
 		}),
 	).Methods(http.MethodGet, http.MethodOptions)
 
@@ -257,7 +256,7 @@ func Setup(
 		}),
 	).Methods(http.MethodPost, http.MethodOptions)
 	v3mux.Handle("/join/{roomIDOrAlias}",
-		httputil.MakeAuthAPI(gomatrixserverlib.Join, userAPI, func(req *http.Request, device *userapi.Device) util.JSONResponse {
+		httputil.MakeAuthAPI(spec.Join, userAPI, func(req *http.Request, device *userapi.Device) util.JSONResponse {
 			if r := rateLimits.Limit(req, device); r != nil {
 				return *r
 			}
@@ -273,7 +272,7 @@ func Setup(
 
 	if mscCfg.Enabled("msc2753") {
 		v3mux.Handle("/peek/{roomIDOrAlias}",
-			httputil.MakeAuthAPI(gomatrixserverlib.Peek, userAPI, func(req *http.Request, device *userapi.Device) util.JSONResponse {
+			httputil.MakeAuthAPI(spec.Peek, userAPI, func(req *http.Request, device *userapi.Device) util.JSONResponse {
 				if r := rateLimits.Limit(req, device); r != nil {
 					return *r
 				}
@@ -293,7 +292,7 @@ func Setup(
 		}, httputil.WithAllowGuests()),
 	).Methods(http.MethodGet, http.MethodOptions)
 	v3mux.Handle("/rooms/{roomID}/join",
-		httputil.MakeAuthAPI(gomatrixserverlib.Join, userAPI, func(req *http.Request, device *userapi.Device) util.JSONResponse {
+		httputil.MakeAuthAPI(spec.Join, userAPI, func(req *http.Request, device *userapi.Device) util.JSONResponse {
 			if r := rateLimits.Limit(req, device); r != nil {
 				return *r
 			}
@@ -659,7 +658,7 @@ func Setup(
 		httputil.MakeAuthAPI("push_rules", userAPI, func(req *http.Request, device *userapi.Device) util.JSONResponse {
 			return util.JSONResponse{
 				Code: http.StatusBadRequest,
-				JSON: jsonerror.InvalidArgumentValue("missing trailing slash"),
+				JSON: spec.InvalidParam("missing trailing slash"),
 			}
 		}),
 	).Methods(http.MethodGet, http.MethodOptions)
@@ -674,7 +673,7 @@ func Setup(
 		httputil.MakeAuthAPI("push_rules", userAPI, func(req *http.Request, device *userapi.Device) util.JSONResponse {
 			return util.JSONResponse{
 				Code: http.StatusBadRequest,
-				JSON: jsonerror.InvalidArgumentValue("scope, kind and rule ID must be specified"),
+				JSON: spec.InvalidParam("scope, kind and rule ID must be specified"),
 			}
 		}),
 	).Methods(http.MethodPut)
@@ -693,7 +692,7 @@ func Setup(
 		httputil.MakeAuthAPI("push_rules", userAPI, func(req *http.Request, device *userapi.Device) util.JSONResponse {
 			return util.JSONResponse{
 				Code: http.StatusBadRequest,
-				JSON: jsonerror.InvalidArgumentValue("missing trailing slash after scope"),
+				JSON: spec.InvalidParam("missing trailing slash after scope"),
 			}
 		}),
 	).Methods(http.MethodGet, http.MethodOptions)
@@ -702,7 +701,7 @@ func Setup(
 		httputil.MakeAuthAPI("push_rules", userAPI, func(req *http.Request, device *userapi.Device) util.JSONResponse {
 			return util.JSONResponse{
 				Code: http.StatusBadRequest,
-				JSON: jsonerror.InvalidArgumentValue("kind and rule ID must be specified"),
+				JSON: spec.InvalidParam("kind and rule ID must be specified"),
 			}
 		}),
 	).Methods(http.MethodPut)
@@ -721,7 +720,7 @@ func Setup(
 		httputil.MakeAuthAPI("push_rules", userAPI, func(req *http.Request, device *userapi.Device) util.JSONResponse {
 			return util.JSONResponse{
 				Code: http.StatusBadRequest,
-				JSON: jsonerror.InvalidArgumentValue("missing trailing slash after kind"),
+				JSON: spec.InvalidParam("missing trailing slash after kind"),
 			}
 		}),
 	).Methods(http.MethodGet, http.MethodOptions)
@@ -730,7 +729,7 @@ func Setup(
 		httputil.MakeAuthAPI("push_rules", userAPI, func(req *http.Request, device *userapi.Device) util.JSONResponse {
 			return util.JSONResponse{
 				Code: http.StatusBadRequest,
-				JSON: jsonerror.InvalidArgumentValue("rule ID must be specified"),
+				JSON: spec.InvalidParam("rule ID must be specified"),
 			}
 		}),
 	).Methods(http.MethodPut)
@@ -939,7 +938,7 @@ func Setup(
 			// TODO: Allow people to peek into rooms.
 			return util.JSONResponse{
 				Code: http.StatusForbidden,
-				JSON: jsonerror.GuestAccessForbidden("Guest access not implemented"),
+				JSON: spec.GuestAccessForbidden("Guest access not implemented"),
 			}
 		}),
 	).Methods(http.MethodGet, http.MethodOptions)
@@ -1244,7 +1243,7 @@ func Setup(
 		if version == "" {
 			return util.JSONResponse{
 				Code: 400,
-				JSON: jsonerror.InvalidArgumentValue("version must be specified"),
+				JSON: spec.InvalidParam("version must be specified"),
 			}
 		}
 		var reqBody keyBackupSessionRequest
@@ -1265,7 +1264,7 @@ func Setup(
 		if version == "" {
 			return util.JSONResponse{
 				Code: 400,
-				JSON: jsonerror.InvalidArgumentValue("version must be specified"),
+				JSON: spec.InvalidParam("version must be specified"),
 			}
 		}
 		roomID := vars["roomID"]
@@ -1297,7 +1296,7 @@ func Setup(
 		if version == "" {
 			return util.JSONResponse{
 				Code: 400,
-				JSON: jsonerror.InvalidArgumentValue("version must be specified"),
+				JSON: spec.InvalidParam("version must be specified"),
 			}
 		}
 		var reqBody userapi.KeyBackupSession
@@ -1398,7 +1397,7 @@ func Setup(
 		}, httputil.WithAllowGuests()),
 	).Methods(http.MethodPost, http.MethodOptions)
 	v3mux.Handle("/rooms/{roomId}/receipt/{receiptType}/{eventId}",
-		httputil.MakeAuthAPI(gomatrixserverlib.Join, userAPI, func(req *http.Request, device *userapi.Device) util.JSONResponse {
+		httputil.MakeAuthAPI(spec.Join, userAPI, func(req *http.Request, device *userapi.Device) util.JSONResponse {
 			if r := rateLimits.Limit(req, device); r != nil {
 				return *r
 			}
